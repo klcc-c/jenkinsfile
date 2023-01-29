@@ -1,0 +1,34 @@
+pipeline {
+    // 选择运行的节点
+    agent {
+        label 'build-01'
+    }
+
+    stages {
+        stage('bulid') {
+            steps {
+                echo 'build'
+            }
+        }
+        stage('test') {
+            steps {
+                echo 'test'
+            }
+        }
+        stage('deploy') {
+            steps {
+                script{
+                    // groovy script
+                    println("hello world")
+                    result = sh returnStdout: true, script: 'echo 123' // 123\n
+                    println(result - "\n")  // \n 就减掉了
+
+                    // enviroment self 内置变量
+                    println("build id: ${BUILD_ID}")  // 构建id
+                    println("job name: ${JOB_NAME}")  // 构建名称
+                }
+                echo 'deploy'
+            }
+        }        
+    }
+}

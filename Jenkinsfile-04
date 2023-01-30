@@ -1,0 +1,34 @@
+// if
+// dev == dev stag == master
+
+// switch
+
+branchName = "dev"
+
+pipeline {
+    agent any
+    
+    stages {
+        stage("run"){
+            steps{
+                script{
+                    // script
+                    currentBuild.displayName = branchName  // 构建ID设置
+
+                    if (branchName == "dev") {
+                        println("deploy to dev...")
+                        currentBuild.description = "deploy to dev..."  // 构建信息描述
+
+                    } else if (branchName == "master") {
+                        println("deploy to stag...")
+                        currentBuild.description = "deploy to stag..."
+
+                    } else {
+                        println("error...")
+                        currentBuild.description = "error..."
+                    }
+                }
+            }
+        }
+    }
+}

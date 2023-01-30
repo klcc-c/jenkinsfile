@@ -27,9 +27,9 @@ pipeline {
     }
 
     // 构建触发器
-    triggers {
-        cron 'H * * * *'  // 定时
-    }
+    //triggers {
+    //    cron 'H * * * *'  // 定时
+    //}
 
     stages {
         stage('bulid') {
@@ -67,10 +67,20 @@ pipeline {
                 echo 'test'
                 echo "执行动作: ${ops}"
                 echo "批准用户: ${approve_user}"
+
+                script {
+                    // 由于下个stage 无法获取ops的值，特此定义一个新的全局变量
+                    // env. 定义全局变量
+                    env.OPS = "${ops}"
+                }
             }
         }
 
         stage('deploy') {
+            // 当ops 的值是deploy才执行  是否运行
+            when {
+                environment name: 'OPS', value: 'deploy'
+            }
             steps {
                 script{
                     // groovy script
@@ -85,6 +95,24 @@ pipeline {
                 echo 'deploy'
             }
         }
+
+        stage("parallelstage"){
+            failFast true
+            parallel {
+                stage("build01") {
+                    steps {
+                        echo "windows "
+                    }
+                }
+
+                stage("build02") {
+                    steps {
+                        echo "linux"
+                    }
+                }
+            }
+        }
+
     }
     post {
         always {

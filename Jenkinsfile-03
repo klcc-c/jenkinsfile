@@ -1,102 +1,83 @@
+// String
+
+name = "lzj"
+
+// List
+tools = ["gitlab", "jenkins", "maven", "sonar"]
+
+// Map
+user_info = ["id": 100, "name": "jenkins"]
+
 pipeline {
-    // 选择全局运行的节点
-    agent {
-        label 'build-01'
-    }
-
-    // 全局变量
-    environment {
-        VERSION = "1.1.1"
-    }
-
-    // 运行选项 
-    options {
-        // 丢弃旧的构建 5天和 15个
-        buildDiscarder logRotator(artifactDaysToKeepStr: '', 
-                                  artifactNumToKeepStr: '', 
-                                  daysToKeepStr: '5', 
-                                  numToKeepStr: '15')
-        //不允许并发                          
-        disableConcurrentBuilds() 
-    }
-
-    // 构建参数
-    parameters {
-        string defaultValue: 'lzj', description: 'NAME info', name: 'NAME'
-        choice choices: ['dev', 'test', 'uat'], description: 'env names', name: 'ENVNAME'
-    }
-
-    // 构建触发器
-    triggers {
-        cron 'H * * * *'  // 定时
-    }
-
-    stages {
-        stage('bulid') {
-            agent {
-                label 'build-01'  // 该步骤会在标签linux上运行
-            }
-            // 局部变量
-            environment {
-                VERSION = "1.1.2"
-            }
-
-            steps {
-                echo 'build'
-
-                // print env
-                echo "${VERSION}"  // 局部大于全局变量
-
-                // print param
-                echo "${params.NAME}"
-                echo "${params.ENVNAME}"
-            }
-        }
-
-        stage('test') {
-            input {
-                message '接下来的操作'
-                ok 'ok'
-                submitterParameter 'approve_user'
-                parameters {
-                    choice choices: ['deploy', 'rollback'], name: 'ops'
-                }
-            }
-
-            steps {
-                echo 'test'
-                echo "执行动作: ${ops}"
-                echo "批准用户: ${approve_user}"
-            }
-        }
-
-        stage('deploy') {
-            steps {
+    agent any
+    stages{
+        stage("run"){
+            steps{
                 script{
-                    // groovy script
-                    println("hello world")
-                    result = sh returnStdout: true, script: 'echo 123' // 123\n
-                    println(result - "\n")  // \n 就减掉了
+                    // String script
+                    println(name)
 
-                    // enviroment self 内置变量
-                    println("build id: ${BUILD_ID}")  // 构建id
-                    println("job name: ${JOB_NAME}")  // 构建名称
+                    // buname-appname-type
+                    job_name = "devops-app-service_CI"
+                    bu_name = job_name.split('-')[0]
+                    println(bu_name)
+                    
+                    // 是否包含CI contains
+                    println(job_name.contains("CI"))
+
+                    // size / length
+                    println("size: ${job_name.size()}")
+                    println("length: ${job_name.length()}")
+
+                    // endsWith()
+                    println("endswith CI: ${job_name.endsWith('CI')}")
+
+                    // List script
+                    println(tools)
+
+                    // add
+                    println(tools + "k8s")
+                    println(tools << "ansible") // 会改变属性的值
+                    println(tools - "maven")
+                    println(tools)
+
+                    tools.add("maven")
+                    println(tools)
+                    println(tools.getClass())
+                    
+                    // contains
+                    println(tools.contains("jenkins"))
+
+                    // length
+                    println(tools.size())
+
+                    // index
+                    println(tools[0])
+                    println(tools[-1])
+
+                    // Map stript
+                    println(user_info)
+
+                    // get name
+                    println(user_info["id"])
+                    println(user_info["name"])
+
+                    // = 
+                    user_info["name"] = "jenkinsX"
+                    println(user_info)
+
+                    // key
+                    println(user_info.containsKey("name"))
+                    println(user_info.containsValue(100))
+
+                    // keys
+                    println(user_info.keySet())
+
+                    // remove
+                    user_info.remove("name")
+                    println(user_info)
                 }
-                echo 'deploy'
             }
-        }
-    }
-    post {
-        always {
-            echo "always"
-        }
-        success {
-            // One or more steps need to be included within each condition's block.
-            echo "success"
-        }
-        failure {
-            // One or more steps need to be included within each condition's block.
-            echo "failure"
         }
     }
 }

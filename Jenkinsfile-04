@@ -27,6 +27,26 @@ pipeline {
                         println("error...")
                         currentBuild.description = "error..."
                     }
+
+                    // switch
+                    switch(branchName) {
+                        case "dev":
+                            println("deploy to dev...")
+                            currentBuild.description = "deploy to dev..."  // 构建信息描述
+                        break
+
+                        case "master":
+                            println("deploy to stag...")
+                            currentBuild.description = "deploy to stag..."
+                        break
+                        
+                        default:
+                            println("error...")
+                            currentBuild.description = "error..."
+                        break
+
+
+                    }
                 }
             }
         }

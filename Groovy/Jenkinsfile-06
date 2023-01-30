@@ -1,0 +1,19 @@
+// while
+
+pipeline {
+    agent any
+
+    stages{
+        stage("run"){
+            steps{
+                script{
+                    // script
+                    // 死循环
+                    while(sleeps){
+                        println("sleep...")
+                    }
+                }
+            }
+        }
+    }
+}

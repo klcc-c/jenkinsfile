@@ -1,0 +1,23 @@
+// try catch
+
+pipeline{
+    agent any
+
+    stages{
+        stage("run"){
+            steps{
+                script{
+                    // script
+                    try {
+                        println(a) // not define a error
+                    } catch(Exception e){
+                        println(e)
+                        // error "error...d"
+                    } finally {
+                        println("always...")
+                    }
+                }
+            }
+        }
+    }
+}

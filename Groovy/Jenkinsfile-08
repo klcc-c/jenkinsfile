@@ -1,0 +1,33 @@
+// function
+
+users = [
+    ["id": 1, "name": "jenkins1"],
+    ["id": 2, "name": "jenkins2"],
+    ["id": 3, "name": "jenkins3"],
+]
+
+pipeline {
+    agent any
+
+    stages{
+        stage("run"){
+            steps{
+                script{
+                    // script
+                    name = GetUserNameByID(1)
+                    println(name) // jenkins1
+                }
+            }
+        }
+    }
+}  
+
+// GetUserName
+def GetUserNameByID(id){
+    for (i in users){
+        if (i["id"] == id){
+            return i["name"]
+        }
+    }
+    return "null"
+}

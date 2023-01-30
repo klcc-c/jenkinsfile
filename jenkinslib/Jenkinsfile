@@ -1,0 +1,31 @@
+@Library("mylib") _
+
+def mydemo = new org.devops.demo()
+
+pipeline{
+    agent any
+
+    // 跳过下载代码
+    options {
+        skipDefaultCheckout true
+    }
+
+    stages{
+        stage("run"){
+            steps{
+                script{
+
+                    // use shardlibrary
+                    id = 1
+                    name = mydemo.GetUserNameByID(id)
+                    println(name)
+
+                    // use resource config
+
+                    data = libraryResource 'config/data.json'
+                    println(data)
+                }
+            }
+        }
+    }
+}

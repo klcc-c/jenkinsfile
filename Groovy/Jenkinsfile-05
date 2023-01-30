@@ -23,7 +23,14 @@ pipeline{
                     }
 
                     println(user_names)
+                    // times
+                    10.times {
+                        println("hello")
+                    }
 
+                    10.times { i ->
+                        println(i)
+                    }
                 }
             }
         }

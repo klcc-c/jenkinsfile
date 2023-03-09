@@ -1,0 +1,174 @@
+@Library("ruoyi-lib") _
+
+// Lib
+def build = new org.ruoyi.Build()
+def moddir = new org.ruoyi.ModDir()
+def myTool = new org.ruoyi.Tools()
+def gitlabTool = new org.ruoyi.Gitlab()
+
+// Pipeline
+pipeline {
+    agent { label "build-01"}
+
+    options {
+        skipDefaultCheckout true
+    }
+
+    
+    stages {
+        stage("CheckOut") {
+            steps {
+                script {
+                    // echo "${JOB_NAME}" // JOB 名称 ruoyi-test1/ruoyi2-system-service
+                    echo "${JOB_NAME.split('-')[2]}" //system  视情况而定
+                    
+                    // 下载代码
+                    checkout scmGit(
+                        branches: [[name: "${env.branchName}"]], 
+                        extensions: [], 
+                        userRemoteConfigs: [[credentialsId: '77c1eec3-e6dc-4483-81be-4f677601ff64', 
+                                            url: "${env.srcUrl}"]])
+                }
+            }
+        }
+        
+        stage("build") {
+            steps {
+                script {
+                    // 构建ID设置 获取gitlab的commitID的前10作为构建ID
+                    commitid = myTool.GetCommitID()[0..9]
+                    // echo "${commitid}"
+                    currentBuild.displayName = "${commitid}"
+
+                    // 构建描述信息
+                    currentBuild.description = "branch: ${env.branchName}"
+
+                    // 构建阶段
+                    moddir.getDir()  // 获取项目的文件位置
+                    build.Build()
+                }
+            }
+        }
+
+        stage("UnitTest") {
+            when {
+                environment name: 'skipUnitTest' , value: 'false'
+            }
+            steps {
+                script {
+                    // 单元测试
+                    build.UnitTest()
+                }
+            }
+        }
+
+        stage("CodeScan") {
+            steps {
+                script {
+                    // 代码扫描
+                    
+                    echo "${env.ModDir}"
+                    withCredentials([usernamePassword(credentialsId: '91d89a11-bd11-4708-9931-696d96c3cbc0', 
+                                     passwordVariable: 'PASSWORD', 
+                                     usernameVariable: 'USERNAME')]) {
+                                        sh "cd ${env.ModDir}  && sonar-scanner -Dsonar.login=${USERNAME} -Dsonar.password=${PASSWORD}"
+                                     }
+                }
+            }
+        }
+
+        stage("DockerImage") {
+            steps {
+                script {
+                    // 生成docker镜像
+
+                    env.repoName = "${JOB_NAME}".split("-")[0]  // ruoyi
+                    env.projectName = "${repoName}"+'-'+"${JOB_NAME}".split("-")[-1] // ruoyi-ui
+                    env.registry = "192.168.150.22:5443"
+                    env.releaseVersion = "${env.branchName}".split("/")[1] // branch name 
+                    env.imageName = "${env.registry}/${env.repoName}/${env.projectName}:${env.releaseVersion}"
+
+                    withCredentials([usernamePassword(credentialsId: '225b2eca-21cf-4de7-a06b-513b60c347f0', 
+                                                    passwordVariable: 'DOCKER_PASSWD', usernameVariable: 'DOCKER_USER')]) {
+                    sh """
+                        # 构建镜像
+                        cd ${env.ModDir}
+                        docker build -t ${env.imageName} .
+
+                        # 登录镜像仓库
+                        docker login -u ${DOCKER_USER} -p ${DOCKER_PASSWD} ${env.registry}
+
+                        # 上传镜像
+                        docker  push ${env.imageName}
+
+                        # 删除镜像
+                        sleep 2
+                        docker rmi ${env.imageName}
+                    """
+                    }
+                }
+            }
+        }
+
+        stage("UpdateEnvFile"){
+            steps{
+                script {
+                    // 更新部署文件
+
+                    //下载发布文件
+                    projectId = 5
+                    filePath = "${env.projectName}"+'-deployment.yaml'
+                    branchName = "main"
+                    fileData = gitlabTool.GetRepoFile(projectId,filePath, branchName )
+                    
+                    // 写入yaml文件到本地
+                    sh "rm -fr ${filePath}"
+                    writeFile file: filePath , text: fileData
+                    env.deployFile = filePath
+
+                    // 替换yaml文件
+                    sh "sed -i 's#__RELEASE_VERSION__#${env.releaseVersion}#g' ${env.deployFile} "
+                    sh "ls -l ; cat ${filePath}"
+
+                    //创建/更新发布文件
+                    newYaml = sh returnStdout: true, script: "cat ${env.deployFile}"
+                    println(newYaml)
+                    
+                    //更新gitlab文件内容
+                    base64Content = newYaml.bytes.encodeBase64().toString()
+
+                    env.repoName = "${JOB_NAME}".split("-")[0]  // ruoyi
+                    env.groupName = "${JOB_NAME}".split("-")[1]   // dev uat prod
+                    env.projectName = "${repoName}"+'-'+"${JOB_NAME}".split("-")[-1] // ruoyi-ui
+                    
+                    // 会有并行问题，同时更新报错
+                    try {
+                        gitlabTool.UpdateRepoFile(projectId,"${env.projectName}%2f${env.releaseVersion}.yaml",base64Content, "main")
+                    } catch(e){
+                        gitlabTool.CreateRepoFile(projectId,"${env.projectName}%2f${env.releaseVersion}.yaml",base64Content, "main")
+                    }
+                }
+            }
+        }
+
+        stage("DeployAPP"){
+            steps{
+                script{
+                    env.namespace = "${env.groupName}"
+
+                    sh """
+                        ## 发布应用
+                        kubectl apply -f ${env.deployFile} -n ${env.namespace}
+
+                    """
+
+                    // 获取应用状态
+                    5.times{
+                        sh "sleep 2; kubectl -n ${env.namespace} get pod | grep ${env.projectName}"
+                    }
+                }
+            }
+        }
+
+    }
+}

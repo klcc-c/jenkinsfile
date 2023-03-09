@@ -1,0 +1,85 @@
+@Library("ruoyi-lib") _
+
+
+//Lib
+def gitlabTool = new org.ruoyi.Gitlab()
+
+env.repoName = "${JOB_NAME}".split("-")[0]  // ruoyi
+env.groupName = "${JOB_NAME}".split("-")[1]   // dev uat prod
+env.projectName = "${repoName}"+'-'+"${JOB_NAME}".split("-")[-1] // ruoyi-ui
+
+//Pipeline
+pipeline {
+    agent { label "build-01"}
+    options{
+        skipDefaultCheckout true
+    }
+    stages{
+        stage("GetDeployFile"){
+            steps{
+                script{
+                    //下载发布文件
+                    //// yaml模板 所在仓库的id和分支 固定不变
+                    projectId = 5 
+                    branchName = "main"
+                    filePath = "ruoyi-ui-deployment.yaml"
+                    env.deployFile = filePath
+
+                    //env.deployFile = "${env.releaseVersion}.yaml"
+                    //filePath = "${env.projectName}%2f${env.deployFile}"
+
+                    fileData = gitlabTool.GetRepoFile(projectId,filePath, branchName )
+                    sh "rm -fr ${env.deployFile}"
+                    writeFile file: filePath , text: fileData
+                    
+                    sh "sed -i 's#__RELEASE_VERSION__#${env.releaseVersion}#g' ${env.deployFile} "
+                    sh "ls -l ; cat ${filePath}"
+                }
+            }
+        }
+
+        stage("DeployAPP"){
+            steps{
+                script{
+                    env.namespace = "${env.groupName}"
+
+                    sh """
+                        ## 发布应用
+                        kubectl apply -f ${env.deployFile} -n ${env.namespace}
+                    """
+
+                    // 获取应用状态
+                    5.times{
+                        sh "sleep 2; kubectl -n ${env.namespace} get pod | grep ${env.projectName}"
+                    }
+                }
+            }
+        }
+
+        stage("RollOut"){
+            input {
+                message "是否进行回滚"
+                ok "提交"
+                submitter ""
+                parameters {
+                    choice(choices: ['yes', 'no'], name: 'opts')
+                }
+            }
+
+            steps{
+                script{
+
+                    switch("${opts}") {
+                        case "yes":
+                            sh "kubectl rollout undo deployment/${env.projectName} -n ${env.namespace} "
+                        break
+
+                        case "no":
+                        break
+                    }
+                }
+            }
+        }
+
+    }
+}
